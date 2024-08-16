@@ -76,7 +76,7 @@ def f2M_fun(n):
 def yijtp_fun(Y,n):
 
     """
-    returns the dual variable yijtp defined after Eq.(164) or Eq.(174)
+    returns the dual variable yijtp defined after Eq.(151)
     """
 
     f2M,_=f2M_fun(n)
@@ -91,7 +91,7 @@ def yijtp_fun(Y,n):
                     for a in range((max(i,j)+k-n),k+1):
                         if a>=0:
                             y +=alpha(i,j,t,p,a,k,n)*Y[f2M[a,k]][i-k,j-k]
-                yijtp.append(y)
+                yijtp.append(y/gamma(i, j, t, p, n))
     return yijtp
 
 def wt(P,n):
@@ -112,6 +112,6 @@ def K(j,i,n):
 
 def D_fun(C,n,d):
     """
-    returns the Di function as defined after Eq.(174)) .
+    returns the Di function as defined in Eq.(150)) .
     """
     return [2 ** (-n) * sum(K(j, i, n) * C[j] for j in range(d)) for i in range(n + 1)]
