@@ -8,9 +8,9 @@ The solutions in pickle format: *inf\_cert\_7*, *inf\_cert\_8* and *inf\_cert\_1
 
 The programs *certificate\_7.ipynb*, *certificate\_8.ipynb* and *certificate\_10.ipynb* read the pickle files and check the objective function and the violation constraints for each three codes respectivly.
 
-This proof the non-existence of qubit quantum codes $((7,1,4))$, $((8, 9, 3))$ and $(( 10 , 5, 4 ))$.
+This proves the non-existence of qubit quantum codes $((7,1,4))$, $((8, 9, 3))$ and $(( 10 , 5, 4 ))$.
 
-We additionally provide *lovasz.ipynb* which checks that the quantum lovasz number written as in Eq. (157), disproof the existence of the qubit quantum code $(( 4 , 1, 3 ))$.
+We additionally provide *lovasz.ipynb* which checks that the quantum lovasz number written as in Eq. (157), proves the non-existence of the qubit quantum code $(( 4 , 1, 3 ))$.
 
 All needed functions are defined in *fun_dual.ipynb*.
   
