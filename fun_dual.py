@@ -119,7 +119,7 @@ def D_fun(C,n,d):
     """
     return [2 ** (-n) * sum(K(j, i, n) * C[j] for j in range(d)) for i in range(n + 1)]
 
-def SDPdual(n, K, d, upperbound=None, solver='cvxopt', verbosity=0, sol_primal=True, sol_dual=True, sdptol=1e-09):
+def SDPdual(n, K, d, upperbound=None, solver='cvxopt', verbosity=0, sol_primal=True, sdptol=1e-09):
 
     f4, size = f4_fun(n)
     f2M, _ = f2M_fun(n)
@@ -160,13 +160,66 @@ def SDPdual(n, K, d, upperbound=None, solver='cvxopt', verbosity=0, sol_primal=T
                  if t - p == c - q and (i, j, i + j - t - p) in list(permutations((a, b, a + b - c - q)))])==0
     for i, j, t, p in f4.keys() if (t - p) % 2 == 0 and not j == 0 and not i==j==t==p)
 
-    sol = sdp.solve(solver=solver, primals=sol_primal, duals=sol_dual)
+    sol = sdp.solve(solver=solver, primals=sol_primal)
 
-    Y = [np.array(Y[i].value) if np.array(Y[i].value).size != 1 else np.array([[Y[i].value]]) for i in
-                range(len(Y))]
+    sol = sol.problemStatus
+    obj = sdp.objective.value
 
-    C, Q = C.value, Q.value
-    obj=sdp.objective.value
-    sol= sol.problemStatus
+    if sol_primal == True:
+        Y = [np.array(Y[i].value) if np.array(Y[i].value).size != 1 else np.array([[Y[i].value]]) for i in
+                    range(len(Y))]
+        C, Q = C.value, Q.value
+
+    else:
+        Y, C, Q = None, None, None
 
     return sol, Y, C, Q, f4, obj
+
+def SDPdual_lovasz(n, d, upperbound=None, solver='cvxopt', sol_primal=True, sdptol=1e-09):
+
+    f4, size = f4_fun(n)
+    f2M, _ = f2M_fun(n)
+
+    sdp = pic.Problem()
+    sdp.options["*_tol"] = sdptol
+
+    Y = [pic.SymmetricVariable("Y%s%s" % (a, k), int(n + a - 2 * k + 1)) for a in range(n + 1) for k in
+         range(a, int((n + a) / 2) + 1)]
+    y = yijtp_fun(Y, n)
+
+    sdp.add_list_of_constraints(Y[i] >> 0 for i in range(len(Y)))
+
+    w = pic.RealVariable('w',1)
+    obj_fun =  (2**n-1)*w -y[f4[0, 0, 0, 0]]
+
+    sdp.set_objective('max', obj_fun)
+
+    if upperbound != None:
+        sdp.add_constraint(upperbound>= obj_fun)
+
+    #### Lovasz + Knill Laflamme constraints ####
+
+    ### removing other constraints ###
+
+    sdp.add_list_of_constraints(y[f4[i, j, t, p]] == 0 for i, j, t, p in f4.keys() if
+                                ((t - p) % 2) == 0 and (i + j - t - p) >=d and not j == 0 and not i==0)
+
+
+    sdp.add_list_of_constraints(
+        2*y[f4[i, 0, 0, 0]]+y[f4[i, i, i, i]]+w == 0
+        for i in range(d, n + 1))
+
+    sol = sdp.solve(solver=solver, primals=sol_primal)
+
+    sol= sol.problemStatus
+    obj = sdp.objective.value
+
+    if sol_primal==True:
+
+        Y = [np.array(Y[i].value) if np.array(Y[i].value).size != 1 else np.array([[Y[i].value]]) for i in range(len(Y))]
+        w=w.value
+
+    else:
+        Y,w=None,None
+
+    return sol, f4, Y, w, obj
