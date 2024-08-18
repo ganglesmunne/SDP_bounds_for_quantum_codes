@@ -117,7 +117,7 @@ def D_fun(C,n,d):
     """
     returns the Di function as defined in Eq.(150)) .
     """
-    return [2 ** (-n) * sum(K(j, i, n) * C[j] for j in range(d)) for i in range(n + 1)]
+    return [2 ** (-n) * sum(K_fun(j, i, n) * C[j] for j in range(d)) for i in range(n + 1)]
 
 def SDPdual(n, K, d, upperbound=None, solver='cvxopt', verbosity=0, sol_primal=True, sdptol=1e-09):
 
