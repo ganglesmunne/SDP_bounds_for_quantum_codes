@@ -1,8 +1,8 @@
 import mpmath as mp
-from itertools import product
 import picos as pic
 from itertools import product, permutations
 import numpy as np
+from qubit_upper_bounds import fun_upper_qubit
 
 # binomials and coefficients:
 def comb(n, k):
@@ -77,9 +77,8 @@ def f2M_fun(n):
 
 ### dual yijtp ###
 def yijtp_fun(Y,n):
-
     """
-    returns the dual variable yijtp defined after Eq.(151)
+    returns the dual variable yijtp defined after Eq.(148) or Eq.(150)
     """
 
     f2M,_=f2M_fun(n)
@@ -98,16 +97,17 @@ def yijtp_fun(Y,n):
     return yijtp
 
 def wt(P,n):
-
     """
     returns the weight of a pauli string P, e.g. 'XIZI', of size n.
     """
+
     return n-list(P).count('I')
 
 def K_fun(j,i,n):
     """
     returns the quarternary Krawtchouk Polynomial as defined in Eq.(16) .
     """
+
     sum=0
     for alp in range(n+1):
         sum += (-1)**alp*comb(n-i,j-alp)*comb(i,alp)*3**(j-alp)
@@ -115,37 +115,60 @@ def K_fun(j,i,n):
 
 def D_fun(C,n,d):
     """
-    returns the Di function as defined in Eq.(150)) .
+    returns the Di function as defined in Eq.(150).
     """
+
     return [2 ** (-n) * sum(K_fun(j, i, n) * C[j] for j in range(d)) for i in range(n + 1)]
 
-def SDPdual(n, K, d, upperbound=None, solver='cvxopt', verbosity=0, sol_primal=True, sdptol=1e-09):
+def SDPdual(n, K, d, upperbound=None, solver='cvxopt', sol_primal=True, sdptol=None):
+    """
+    computes the SDP from Eq.(148).
+
+    :param n: number of qubits.
+    :param K: size of the code.
+    :param d: distance of the code
+    :param upperbound: max value of the objective function
+    :param solver: change solver from PICOS
+    :param sol_primal: calculate the solution of the primal
+    :param sdptol: tolerance of the SDP
+
+    :return:
+        :sol: solution status
+        :Y, C, Q: dual variables
+        :obj: objective function
+    """
 
     f4, size = f4_fun(n)
     f2M, _ = f2M_fun(n)
 
-    sdp = pic.Problem(verbosity=verbosity)
+    sdp = pic.Problem()
     sdp.options["*_tol"]=sdptol
+
+    # define the dual variables
 
     Y = [pic.SymmetricVariable("Y%s%s" % (a, k), int(n + a - 2 * k + 1)) for a in range(n + 1) for k in
          range(a, int((n + a) / 2) + 1)]
-
-    C = pic.RealVariable("C", n+1)
+    C = pic.RealVariable("C", n + 1)
     Q = pic.RealVariable("P", n + 1)
-    D = [pic.sum([2**(-n)*K_fun(j,i,n)*C[j] for j in range(d)]) for i in range(n+1)]
 
+    D = D_fun(C,n,d)
     y = yijtp_fun(Y, n)
+
+    # positive semidefinite constraints
 
     sdp.add_list_of_constraints(Y[i] >> 0 for i in range(len(Y)))
 
-    obj_fun = (K*D[0]-C[0])+(2**n/K-1)*Q[0] - y[f4[0, 0, 0, 0]]
+    # define objective function
 
+    obj_fun = (K*D[0]-C[0])+(2**n/K-1)*Q[0] - y[f4[0, 0, 0, 0]]
     sdp.set_objective('max', obj_fun)
+
+    # max value of the obj function
 
     if upperbound != None:
         sdp.add_constraint(obj_fun <= upperbound)
 
-    #### Constraints ####
+    # linear constraints
 
     sdp.add_list_of_constraints(
         -2*y[f4[i, 0, 0, 0]]-y[f4[i, i, i, i]] + K*D[i]-C[i]+(2**n/K-2)*Q[i]-Q[0]==0
@@ -156,11 +179,14 @@ def SDPdual(n, K, d, upperbound=None, solver='cvxopt', verbosity=0, sol_primal=T
         for i in range(d,n+1))
 
     sdp.add_list_of_constraints(
-        pic.sum([y[f4[a, b, c, q]] + Q[a+b-c-q] for a, b, c, q in f4.keys()
-                 if t - p == c - q and (i, j, i + j - t - p) in list(permutations((a, b, a + b - c - q)))])==0
+        pic.sum([y[f4[a, b, c, q]] + Q[a+b-c-q] for a, b, c, q in f4.keys() if t - p == c - q and (i, j, i + j - t - p) in list(permutations((a, b, a + b - c - q)))])==0
     for i, j, t, p in f4.keys() if (t - p) % 2 == 0 and not j == 0 and not i==j==t==p)
 
+    # solve SDP
+
     sol = sdp.solve(solver=solver, primals=sol_primal)
+
+    # determine the solution state, objective function and dual variables
 
     sol = sol.problemStatus
     obj = sdp.objective.value
@@ -173,9 +199,25 @@ def SDPdual(n, K, d, upperbound=None, solver='cvxopt', verbosity=0, sol_primal=T
     else:
         Y, C, Q = None, None, None
 
-    return sol, Y, C, Q, f4, obj
+    return sol, Y, C, Q, obj
 
-def SDPdual_lovasz(n, d, upperbound=None, solver='cvxopt', sol_primal=True, sdptol=1e-09):
+def SDPdual_lovasz(n, d, upperbound=None, solver='cvxopt', sol_primal=True, sdptol=None):
+    """
+    computes the SDP from Eq.(148).
+
+    :param n: number of qubits.
+    :param K: size of the code.
+    :param d: distance of the code
+    :param upperbound: max value of the objective function
+    :param solver: change solver from PICOS
+    :param sol_primal: calculate the solution of the primal
+    :param sdptol: tolerance of the SDP
+
+    :return:
+        :sol: solution status
+        :Y, w: dual variables
+        :obj: objective function
+    """
 
     f4, size = f4_fun(n)
     f2M, _ = f2M_fun(n)
@@ -183,23 +225,28 @@ def SDPdual_lovasz(n, d, upperbound=None, solver='cvxopt', sol_primal=True, sdpt
     sdp = pic.Problem()
     sdp.options["*_tol"] = sdptol
 
+    # define the dual variables
+
     Y = [pic.SymmetricVariable("Y%s%s" % (a, k), int(n + a - 2 * k + 1)) for a in range(n + 1) for k in
          range(a, int((n + a) / 2) + 1)]
+
     y = yijtp_fun(Y, n)
 
-    sdp.add_list_of_constraints(Y[i] >> 0 for i in range(len(Y)))
-
     w = pic.RealVariable('w',1)
+
+    # define objective function
+
     obj_fun =  (2**n-1)*w -y[f4[0, 0, 0, 0]]
 
     sdp.set_objective('max', obj_fun)
 
+    # max value of the obj function
+
     if upperbound != None:
         sdp.add_constraint(upperbound>= obj_fun)
 
-    #### Lovasz + Knill Laflamme constraints ####
 
-    ### removing other constraints ###
+    # linear constraints
 
     sdp.add_list_of_constraints(y[f4[i, j, t, p]] == 0 for i, j, t, p in f4.keys() if
                                 ((t - p) % 2) == 0 and (i + j - t - p) >=d and not j == 0 and not i==0)
@@ -209,7 +256,15 @@ def SDPdual_lovasz(n, d, upperbound=None, solver='cvxopt', sol_primal=True, sdpt
         2*y[f4[i, 0, 0, 0]]+y[f4[i, i, i, i]]+w == 0
         for i in range(d, n + 1))
 
+    # positive semidefinite constraints
+
+    sdp.add_list_of_constraints(Y[i] >> 0 for i in range(len(Y)))
+
+    # solve SDP
+
     sol = sdp.solve(solver=solver, primals=sol_primal)
+
+    # determine the solution state, objective function and dual variables
 
     sol= sol.problemStatus
     obj = sdp.objective.value
@@ -222,4 +277,54 @@ def SDPdual_lovasz(n, d, upperbound=None, solver='cvxopt', sol_primal=True, sdpt
     else:
         Y,w=None,None
 
-    return sol, f4, Y, w, obj
+    return sol, Y, w, obj
+
+def qubit_table_lovasz(n_min, n_max, dist=0):
+
+    """
+    check feasibility of the qubit quantum codes with K=1 from https://www.codetables.de/ using SDPdual_lovasz.
+
+    :param n_min: minimum number of qubits considered
+    :param n_max: maximum number of qubits considered
+    :param dist: if dist 0 -> check the feasibility of the codes from the table ((n,1,d))
+                if dist 1 -> check the feasibility of the codes from the table ((n,1,d)) with distance increased by 1 ((n,1,d+1))
+    :return: print status of every code
+    """
+
+    L_upper_qubit = fun_upper_qubit()
+
+    for n in range(n_min, n_max + 1):
+        d = L_upper_qubit[n - 1][0] + dist
+
+        sol, Y, w, obj = SDPdual_lovasz(n, d, sol_primal=False, solver='cvxopt')
+
+        print("[%s,%s,%s]=%s" % (n, 1, d, sol))
+
+    print("Done")
+    
+def qubit_table(n_min, n_max, dist=0):
+    """
+    check feasibility of the qubit quantum codes from https://www.codetables.de/ using SDPdual with K ≠ 1.
+
+    :param n_min: minimum number of qubits considered
+    :param n_max: maximum number of qubits considered
+    :param dist: if dist 0 -> check the feasibility of the codes from the table ((n,K,d))
+                if dist 1 -> check the feasibility of the codes from the table ((n,K,d)) with distance increased by 1 ((n,K,d+1))
+    :return: print status of every code
+    """
+
+    L_upper_qubit = fun_upper_qubit()
+
+    for n in range(n_min, n_max + 1):
+        for k in range(1, n + 1):
+            d = L_upper_qubit[n - 1][k] + dist
+
+            sol, Y, C, Q, obj = SDPdual(n, 2 ** k, d, sol_primal=False, solver='cvxopt')
+
+            print("[%s,%s,%s]=%s" % (n, 2 ** k, d, sol))
+
+    print("Done")
+
+
+# qubit_table_lovasz(n_min=1,n_max=9,dist=1)
+# qubit_table(n_min=1,n_max=9,dist=1)
