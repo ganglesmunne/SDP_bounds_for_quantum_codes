@@ -16,5 +16,5 @@ The *SDP_dual.ipynb* includes the used two SDP programs. Both are written using 
 
 We additionally provide *lovasz.ipynb* which runs the SDP of the quantum Lovász number for self-dual codes written in Eq. (70). For the case of the qubit quantum code $(( 4 , 1, 3 ))$, this program shows that the maximum value is $\vartheta(G')=7$ and thus, $1+\vartheta(G') < 2^7$ leading to the non-existence of such code [see Corollary 9].
 
-All needed functions are defined in *fun_dual.ipynb*.
+All needed functions are defined in *fun_dual.ipynb* and *qubit_upper_bounds.py* contains the information of the qubit quantum code table in https://www.codetables.de.
   
