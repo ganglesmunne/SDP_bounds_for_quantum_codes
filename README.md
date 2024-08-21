@@ -1,6 +1,6 @@
 # SDP_bounds_for_quantum_codes
 
-This work complements the results from https://arxiv.org/archive/... All references are from the mentioned manuscript.
+This work complements the results from https://arxiv.org/abs/2408.10323. All references are from the mentioned manuscript.
 
 Denote by $(( n, K, \delta ))$ a qubit quantum code with distance $\delta$, which encodes a K-dimensional Hilbert space to a $n$ qubit Hilbert space. 
   
